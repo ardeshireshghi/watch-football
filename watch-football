@@ -1,0 +1,51 @@
+#!/usr/bin/env node
+
+const jsdom = require('jsdom');
+const axios = require('axios');
+const path = require('path');
+const open = require('open');
+
+const { JSDOM } = jsdom;
+
+const FOOTBALL_BASE_URL = 'https://live-stream365.com';
+const FOOTBALL_URL_PATH = '/sport/football.php';
+
+const findTeamLink = (document, team) => [...document.querySelectorAll('a')]
+  .find(el => el.textContent.toLowerCase().includes(team));
+
+const fetchGamesListHTML = async () => (await axios.get(`${FOOTBALL_BASE_URL}${FOOTBALL_URL_PATH}`)).data;
+
+const getFootballLink = async (team) => {
+  const dom = new JSDOM(`<!DOCTYPE html>${await fetchGamesListHTML()}`);
+  const linkEl = findTeamLink(dom.window.document, team);
+
+  if (!linkEl) {
+    throw new Error(`Link for team '${team}' cannot be found`);
+  }
+
+  return `${FOOTBALL_BASE_URL}${linkEl.getAttribute('onclick').match(/open\('([^\']+)'/)[1]}`
+};
+
+function usage(err) {
+  err && console.log(`Error: ${err.message}`);
+  console.log(`\nUsage: ${path.basename(process.argv[1])} <team-name>`);
+  process.exit(1);
+}
+
+async function main() {
+  if (process.argv.length < 3) {
+    throw new Error('Team name is not defined');
+  }
+
+  const team = process.argv[2];
+  const gameLink = await getFootballLink(team);
+  await open(gameLink, {app: ['firefox', '-private-window']});
+}
+
+(async () => {
+  try {
+    await main();
+  } catch(err) {
+    usage(err);
+  }
+})();
