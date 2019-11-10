@@ -11,7 +11,7 @@ const FOOTBALL_BASE_URL = 'https://live-stream365.com';
 const FOOTBALL_URL_PATH = '/sport/football.php';
 
 const findTeamLink = (document, team) => [...document.querySelectorAll('a')]
-  .find(el => el.textContent.toLowerCase().includes(team));
+  .find(el => el.textContent.toLowerCase().includes(team.toLowerCase()));
 
 const fetchGamesListHTML = async () => (await axios.get(`${FOOTBALL_BASE_URL}${FOOTBALL_URL_PATH}`)).data;
 
@@ -28,18 +28,48 @@ const getFootballLink = async (team) => {
 
 function usage(err) {
   err && console.log(`Error: ${err.message}`);
-  console.log(`\nUsage: ${path.basename(process.argv[1])} <team-name>`);
+
+  console.log(`\nUsage: ${path.basename(process.argv[1])} command`);
+  console.log('\nCOMMANDS');
+  console.log('    list         Lists the available games and current result');
+  console.log('    play         plays the football with provided team name on browser');
+  console.log('\nEXAMPLES');
+  console.log(`   ${path.basename(process.argv[1])} play liverpool\n`);
+
   process.exit(1);
+}
+
+async function excuteCommand(commandName, params = {}) {
+  if (commandName === 'play') {
+    if (!params.team) {
+      throw new Error('No team name is entered');
+    }
+
+    const gameLink = await getFootballLink(params.team);
+    await open(gameLink, {app: ['firefox', '-private-window']});
+  } else if (commandName === 'list') {
+    const dom = new JSDOM(`<!DOCTYPE html>${await fetchGamesListHTML()}`);
+    const { window: { document } } = dom;
+    const formattedReport = [...document.querySelectorAll('table.sort1 tr')].slice(1).map(({children}) => `${children[2].textContent}: ${children[4].textContent}`).join('\n');
+
+    console.log(formattedReport);
+  }
 }
 
 async function main() {
   if (process.argv.length < 3) {
-    throw new Error('Team name is not defined');
+    throw new Error('No commands are specified');
   }
 
-  const team = process.argv[2];
-  const gameLink = await getFootballLink(team);
-  await open(gameLink, {app: ['firefox', '-private-window']});
+  const command = process.argv[2];
+
+  if (command === 'list') {
+    await excuteCommand(command);
+  } else if (command === 'play') {
+    await excuteCommand(command, { team: process.argv[3] });
+  } else {
+    throw new Error(`Invalid command name: ${command}`);
+  }
 }
 
 (async () => {
